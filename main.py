@@ -1,6 +1,4 @@
-# Level 1 : 기본 가스 모니터링
-# 추가 기능 없음 / LED 효과만
-
+# Level 2 : 통계 기능 추가
 from machine import Pin, ADC, PWM
 import time
 import math
@@ -16,6 +14,16 @@ blue.freq(1000)
 
 SAFE_THRESHOLD = 20000
 WARN_THRESHOLD = 40000
+
+# ================================
+# 통계 변수 추가
+# ================================
+count = 0
+max_ppm = 0
+min_ppm = 9999
+total_ppm = 0
+warn_count = 0
+danger_count = 0
 
 def set_color(r, g, b):
     red.duty_u16(int(r * 257))
@@ -60,8 +68,22 @@ def get_status(raw_value):
     else:
         return "위험"
 
+# ================================
+# 통계 출력 함수 추가
+# ================================
+def print_stats():
+    avg_ppm = total_ppm / count if count > 0 else 0
+    print("-" * 40)
+    print(f"  📊 통계 리포트 (측정 {count}회)")
+    print(f"  최대 농도: {max_ppm:.1f} ppm")
+    print(f"  최소 농도: {min_ppm:.1f} ppm")
+    print(f"  평균 농도: {avg_ppm:.1f} ppm")
+    print(f"  주의 발생: {warn_count}회")
+    print(f"  위험 발생: {danger_count}회")
+    print("-" * 40)
+
 print("=" * 40)
-print("  가스 모니터링 시작! (Level 1)")
+print("  가스 모니터링 시작! (Level 2)")
 print("=" * 40)
 
 while True:
@@ -69,7 +91,23 @@ while True:
     ppm = convert_to_ppm(raw_value)
     status = get_status(raw_value)
 
-    print(f"RAW: {raw_value} | PPM: {ppm:.1f} | 상태: {status}")
+    # 통계 업데이트
+    count += 1
+    total_ppm += ppm
+    if ppm > max_ppm:
+        max_ppm = ppm
+    if ppm < min_ppm:
+        min_ppm = ppm
+    if status == "주의":
+        warn_count += 1
+    elif status == "위험":
+        danger_count += 1
+
+    print(f"[{count}회] RAW: {raw_value} | PPM: {ppm:.1f} | 상태: {status}")
+
+    # 10회마다 통계 출력
+    if count % 10 == 0:
+        print_stats()
 
     if raw_value < SAFE_THRESHOLD:
         safe_mode()
