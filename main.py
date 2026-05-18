@@ -1,119 +1,133 @@
-# Level 2 : 통계 기능 추가
-from machine import Pin, ADC, PWM
+from machine import Pin, ADC
 import time
-import math
 
-mq2 = ADC(26)
-red   = PWM(Pin(13))
-green = PWM(Pin(14))
-blue  = PWM(Pin(15))
+# ================================
+# 핀 설정
+# ================================
+mq2 = ADC(26)  # MQ2 → A0 (GP26)
 
-red.freq(1000)
-green.freq(1000)
-blue.freq(1000)
+# LED 10개 (GP0 ~ GP9)
+leds = [Pin(i, Pin.OUT) for i in range(10)]
 
+# ================================
+# 임계값 설정
+# ================================
 SAFE_THRESHOLD = 20000
 WARN_THRESHOLD = 40000
 
 # ================================
-# 통계 변수 추가
+# LED 제어 함수
 # ================================
-count = 0
-max_ppm = 0
-min_ppm = 9999
-total_ppm = 0
-warn_count = 0
-danger_count = 0
+def all_off():
+    for led in leds:
+        led.off()
 
-def set_color(r, g, b):
-    red.duty_u16(int(r * 257))
-    green.duty_u16(int(g * 257))
-    blue.duty_u16(int(b * 257))
+def set_leds(count):
+    all_off()
+    for i in range(count):
+        leds[i].on()
 
-def safe_mode():
-    steps = 40
-    for i in range(steps):
-        wave = math.sin(i / steps * math.pi * 2)
-        g_val = int(200 + wave * 55)
-        b_val = int(200 - wave * 55)
-        set_color(0, g_val, b_val)
-        time.sleep(0.03)
+# ================================
+# 안전 : 파도처럼 출렁
+# ================================
+def safe_mode(count):
+    for i in range(count):
+        all_off()
+        leds[i].on()
+        time.sleep(0.08)
+    for i in range(count - 1, -1, -1):
+        all_off()
+        leds[i].on()
+        time.sleep(0.08)
 
-def warning_mode():
-    steps = 30
-    for i in range(steps):
-        brightness = int((i / steps) * 255)
-        set_color(brightness, brightness, 0)
-        time.sleep(0.02)
-    for i in range(steps, 0, -1):
-        brightness = int((i / steps) * 255)
-        set_color(brightness, brightness, 0)
-        time.sleep(0.02)
+# ================================
+# 주의 : 천천히 깜빡
+# ================================
+def warning_mode(count):
+    set_leds(count)
+    time.sleep(0.5)
+    all_off()
+    time.sleep(0.5)
 
+# ================================
+# 위험 : 전체 엄청 빠르게 번쩍
+# ================================
 def danger_mode():
-    for _ in range(5):
-        set_color(255, 0, 0)
-        time.sleep(0.05)
-        set_color(0, 0, 0)
-        time.sleep(0.05)
+    for _ in range(6):
+        for led in leds:
+            led.on()
+        time.sleep(0.04)
+        all_off()
+        time.sleep(0.04)
 
-def convert_to_ppm(raw_value):
+# ================================
+# 센서값 → LED 개수 변환
+# ================================
+def get_count(raw_value):
+    count = int((raw_value / 65535) * 10)
+    return max(1, min(10, count))
+
+# ================================
+# ppm 변환
+# ================================
+def get_ppm(raw_value):
     return (raw_value / 65535) * 1000
 
+# ================================
+# 상태 확인
+# ================================
 def get_status(raw_value):
     if raw_value < SAFE_THRESHOLD:
-        return "안전"
+        return "안전 🟢"
     elif raw_value < WARN_THRESHOLD:
-        return "주의"
+        return "주의 🟡"
     else:
-        return "위험"
+        return "위험 🔴"
 
 # ================================
-# 통계 출력 함수 추가
+# 시리얼 막대그래프 출력
 # ================================
-def print_stats():
-    avg_ppm = total_ppm / count if count > 0 else 0
-    print("-" * 40)
-    print(f"  📊 통계 리포트 (측정 {count}회)")
-    print(f"  최대 농도: {max_ppm:.1f} ppm")
-    print(f"  최소 농도: {min_ppm:.1f} ppm")
-    print(f"  평균 농도: {avg_ppm:.1f} ppm")
-    print(f"  주의 발생: {warn_count}회")
-    print(f"  위험 발생: {danger_count}회")
-    print("-" * 40)
+def print_bar(raw_value, count, status):
+    bar = "█" * count + "░" * (10 - count)
+    ppm = get_ppm(raw_value)
+    print(f"[{bar}] {count}/10 | {status} | PPM:{ppm:.1f} | RAW:{raw_value}")
 
-print("=" * 40)
-print("  가스 모니터링 시작! (Level 2)")
-print("=" * 40)
+# ================================
+# 워밍업
+# ================================
+def warmup():
+    print("=" * 45)
+    print("  가스누출 경보 위험도 시각화 시스템")
+    print("  MQ-2 워밍업 중... (20초)")
+    print("=" * 45)
+    for i in range(20, 0, -1):
+        for led in leds:
+            led.on()
+        time.sleep(0.3)
+        all_off()
+        time.sleep(0.3)
+        print(f"  워밍업 남은 시간 : {i}초")
+    all_off()
+    print("  ✅ 준비 완료! 모니터링 시작!")
+    print("=" * 45)
+
+# ================================
+# 메인 루프
+# ================================
+warmup()
 
 while True:
     raw_value = mq2.read_u16()
-    ppm = convert_to_ppm(raw_value)
-    status = get_status(raw_value)
+    count     = get_count(raw_value)
+    status    = get_status(raw_value)
 
-    # 통계 업데이트
-    count += 1
-    total_ppm += ppm
-    if ppm > max_ppm:
-        max_ppm = ppm
-    if ppm < min_ppm:
-        min_ppm = ppm
-    if status == "주의":
-        warn_count += 1
-    elif status == "위험":
-        danger_count += 1
-
-    print(f"[{count}회] RAW: {raw_value} | PPM: {ppm:.1f} | 상태: {status}")
-
-    # 10회마다 통계 출력
-    if count % 10 == 0:
-        print_stats()
+    print_bar(raw_value, count, status)
 
     if raw_value < SAFE_THRESHOLD:
-        safe_mode()
-    elif raw_value < WARN_THRESHOLD:
-        warning_mode()
-    else:
-        danger_mode()
+        safe_mode(count)        # 🟢 파도처럼 출렁출렁
 
-    time.sleep(1)
+    elif raw_value < WARN_THRESHOLD:
+        warning_mode(count)     # 🟡 천천히 깜빡깜빡
+
+    else:
+        danger_mode()           # 🔴 전체 엄청 빠르게 번쩍번쩍
