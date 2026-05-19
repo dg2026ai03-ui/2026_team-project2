@@ -1,28 +1,28 @@
 from machine import Pin, ADC
 from neopixel import NeoPixel
 import time
+import math
 
 # ================================
 # 핀 설정
 # ================================
-mq2 = ADC(26)  # MQ2 → A0 (GP26)
-
-# 네오픽셀 LED 설정
+mq2 = ADC(26)
 TIMING = (280, 515, 515, 745)
-led = NeoPixel(Pin(16), 1, timing=TIMING)
+NUM_LEDS = 10  # ✅ 10개!
+led = NeoPixel(Pin(16), NUM_LEDS, timing=TIMING)  # ✅ 10개로 변경!
 
 # ================================
-# 임계값 수정 (PPM 기준)
+# 임계값 설정
 # ================================
-SAFE_THRESHOLD = 120    # 120 이하 → 안전
-WARN_THRESHOLD = 150    # 120~150 → 주의
-                        # 150 이상 → 위험
+SAFE_THRESHOLD = 120
+WARN_THRESHOLD = 150
 
 # ================================
-# 네오픽셀 색상 함수
+# 네오픽셀 색상 함수 ✅ 10개 전부!
 # ================================
 def set_color(r, g, b):
-    led[0] = (r, g, b)
+    for i in range(NUM_LEDS):  # ✅ 10개 전부 같은 색!
+        led[i] = (r, g, b)
     led.write()
 
 def led_off():
@@ -32,12 +32,11 @@ def led_off():
 # 안전 : 초록↔파랑 파도처럼 일렁
 # ================================
 def safe_mode():
-    import math
     steps = 40
     for i in range(steps):
         wave  = math.sin(i / steps * math.pi * 2)
-        g_val = int(200 + wave * 55)
-        b_val = int(200 - wave * 55)
+        g_val = int(127 + wave * 127)
+        b_val = int(127 - wave * 127)
         set_color(0, g_val, b_val)
         time.sleep(0.03)
 
@@ -66,13 +65,13 @@ def danger_mode():
         time.sleep(0.04)
 
 # ================================
-# PPM 변환 (RAW → PPM)
+# PPM 변환
 # ================================
 def convert_to_ppm(raw_value):
     return (raw_value / 65535) * 1000
 
 # ================================
-# 상태 확인 (PPM 기준으로 변경!)
+# 상태 확인
 # ================================
 def get_status(ppm):
     if ppm < SAFE_THRESHOLD:
@@ -86,7 +85,6 @@ def get_status(ppm):
 # 시리얼 막대그래프
 # ================================
 def print_bar(ppm, status):
-    # 0~200 ppm 기준으로 막대 표시
     count = int((ppm / 200) * 10)
     count = max(0, min(10, count))
     bar   = "█" * count + "░" * (10 - count)
@@ -101,7 +99,7 @@ def warmup():
     print("  MQ-2 워밍업 중... (20초)")
     print("=" * 40)
     for i in range(20, 0, -1):
-        set_color(255, 255, 255)
+        set_color(50, 50, 50)  # ✅ 흰색 약하게
         time.sleep(0.3)
         led_off()
         time.sleep(0.3)
@@ -123,10 +121,10 @@ while True:
     print_bar(ppm, status)
 
     if ppm < SAFE_THRESHOLD:
-        safe_mode()       # 🟢 초록↔파랑 파도처럼 일렁
+        safe_mode()       # 🟢 초록↔파랑
 
     elif ppm < WARN_THRESHOLD:
-        warning_mode()    # 🟡 노랑 천천히 깜빡깜빡
+        warning_mode()    # 🟡 노랑 깜빡
 
     else:
-        danger_mode()     # 🔴 빨강 엄청 빠르게 번쩍번쩍
+        danger_mode()     # 🔴 빨강 번쩍
