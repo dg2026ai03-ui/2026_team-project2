@@ -12,10 +12,11 @@ TIMING = (280, 515, 515, 745)
 led = NeoPixel(Pin(16), 1, timing=TIMING)
 
 # ================================
-# 임계값 설정
+# 임계값 수정 (PPM 기준)
 # ================================
-SAFE_THRESHOLD = 20000
-WARN_THRESHOLD = 40000
+SAFE_THRESHOLD = 120    # 120 이하 → 안전
+WARN_THRESHOLD = 150    # 120~150 → 주의
+                        # 150 이상 → 위험
 
 # ================================
 # 네오픽셀 색상 함수
@@ -65,12 +66,18 @@ def danger_mode():
         time.sleep(0.04)
 
 # ================================
-# 상태 확인
+# PPM 변환 (RAW → PPM)
 # ================================
-def get_status(raw_value):
-    if raw_value < SAFE_THRESHOLD:
+def convert_to_ppm(raw_value):
+    return (raw_value / 65535) * 1000
+
+# ================================
+# 상태 확인 (PPM 기준으로 변경!)
+# ================================
+def get_status(ppm):
+    if ppm < SAFE_THRESHOLD:
         return "안전 🟢"
-    elif raw_value < WARN_THRESHOLD:
+    elif ppm < WARN_THRESHOLD:
         return "주의 🟡"
     else:
         return "위험 🔴"
@@ -78,12 +85,12 @@ def get_status(raw_value):
 # ================================
 # 시리얼 막대그래프
 # ================================
-def print_bar(raw_value, status):
-    ppm   = (raw_value / 65535) * 1000
-    count = int((raw_value / 65535) * 10)
+def print_bar(ppm, status):
+    # 0~200 ppm 기준으로 막대 표시
+    count = int((ppm / 200) * 10)
     count = max(0, min(10, count))
     bar   = "█" * count + "░" * (10 - count)
-    print(f"[{bar}] {status} | PPM:{ppm:.1f} | RAW:{raw_value}")
+    print(f"[{bar}] {status} | PPM:{ppm:.1f}")
 
 # ================================
 # 워밍업
@@ -110,14 +117,15 @@ warmup()
 
 while True:
     raw_value = mq2.read_u16()
-    status    = get_status(raw_value)
+    ppm       = convert_to_ppm(raw_value)
+    status    = get_status(ppm)
 
-    print_bar(raw_value, status)
+    print_bar(ppm, status)
 
-    if raw_value < SAFE_THRESHOLD:
+    if ppm < SAFE_THRESHOLD:
         safe_mode()       # 🟢 초록↔파랑 파도처럼 일렁
 
-    elif raw_value < WARN_THRESHOLD:
+    elif ppm < WARN_THRESHOLD:
         warning_mode()    # 🟡 노랑 천천히 깜빡깜빡
 
     else:
