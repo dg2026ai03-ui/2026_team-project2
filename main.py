@@ -29,28 +29,42 @@ def led_off():
     set_color(0, 0, 0)
 
 # ================================
-# 안전 : 자연스러운 그라데이션 🌊
+# LED 게이지 함수
 # ================================
-def safe_mode():
-    steps = 100  # ✅ 더 촘촘하게!
+def set_gauge(ppm):
+    count = int((ppm / 200) * NUM_LEDS)
+    count = max(0, min(NUM_LEDS, count))
+
+    for i in range(NUM_LEDS):
+        if i < count:
+            if ppm < SAFE_THRESHOLD:
+                led[i] = (0, 255, 0)
+            elif ppm < WARN_THRESHOLD:
+                led[i] = (255, 255, 0)
+            else:
+                led[i] = (255, 0, 0)
+        else:
+            led[i] = (0, 0, 0)
+    led.write()
+
+# ================================
+# 안전 : 청록↔파랑 그라데이션
+# ================================
+def safe_mode(ppm):
+    steps = 40
     for i in range(steps):
         t = i / steps
-
-        # ✅ 사인파로 부드럽게 전환!
         wave = (math.sin(t * math.pi * 2 - math.pi / 2) + 1) / 2
-
-        # 청록색(0,200,200) → 파랑(0,50,255) → 청록색 반복
-        r_val = 0
-        g_val = int(200 - wave * 150)  # 200 → 50 → 200
-        b_val = int(200 + wave * 55)   # 200 → 255 → 200
-
-        set_color(r_val, g_val, b_val)
+        g_val = int(200 - wave * 150)
+        b_val = int(200 + wave * 55)
+        set_color(0, g_val, b_val)
         time.sleep(0.02)
+    set_gauge(ppm)
 
 # ================================
 # 주의 : 노랑 천천히 깜빡
 # ================================
-def warning_mode():
+def warning_mode(ppm):
     steps = 30
     for i in range(steps):
         brightness = int((i / steps) * 255)
@@ -60,15 +74,16 @@ def warning_mode():
         brightness = int((i / steps) * 255)
         set_color(brightness, brightness, 0)
         time.sleep(0.02)
+    set_gauge(ppm)
 
 # ================================
-# 위험 : 빨강 엄청 빠르게 번쩍
+# 위험 : 빨강 번쩍 + 게이지
 # ================================
-def danger_mode():
+def danger_mode(ppm):
     for _ in range(6):
         set_color(255, 0, 0)
         time.sleep(0.04)
-        led_off()
+        set_gauge(ppm)
         time.sleep(0.04)
 
 # ================================
@@ -89,15 +104,6 @@ def get_status(ppm):
         return "위험 🔴"
 
 # ================================
-# 시리얼 막대그래프
-# ================================
-def print_bar(ppm, status):
-    count = int((ppm / 200) * 10)
-    count = max(0, min(10, count))
-    bar   = "█" * count + "░" * (10 - count)
-    print(f"[{bar}] {status} | PPM:{ppm:.1f}")
-
-# ================================
 # 워밍업
 # ================================
 def warmup():
@@ -116,7 +122,7 @@ def warmup():
     print("=" * 40)
 
 # ================================
-# 메인 루프
+# 메인 루프 ✅ 기준선 추가!
 # ================================
 warmup()
 
@@ -125,13 +131,14 @@ while True:
     ppm       = convert_to_ppm(raw_value)
     status    = get_status(ppm)
 
-    print_bar(ppm, status)
+    # ✅ PPM + 기준선 2개 동시 출력!
+    print(ppm, SAFE_THRESHOLD, WARN_THRESHOLD)
 
     if ppm < SAFE_THRESHOLD:
-        safe_mode()       # 🟢 청록↔파랑 그라데이션
+        safe_mode(ppm)
 
     elif ppm < WARN_THRESHOLD:
-        warning_mode()    # 🟡 노랑 깜빡
+        warning_mode(ppm)
 
     else:
-        danger_mode()     # 🔴 빨강 번쩍
+        danger_mode(ppm)
