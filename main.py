@@ -18,6 +18,11 @@ SAFE_THRESHOLD = 120
 WARN_THRESHOLD = 150
 
 # ================================
+# 공기질 예보 변수
+# ================================
+prev_ppm = None   # 직전 측정값 저장
+
+# ================================
 # 네오픽셀 색상 함수
 # ================================
 def set_color(r, g, b):
@@ -48,23 +53,18 @@ def set_gauge(ppm):
     led.write()
 
 # ================================
-# ✅ 안전 : LED마다 파도처럼 그라데이션!
+# 안전 : 청록↔파랑 그라데이션
 # ================================
 def safe_mode(ppm):
-    steps = 60
-    for step in range(steps):
-        for i in range(NUM_LEDS):
-            # ✅ LED마다 위치에 따라 파도가 다르게!
-            wave = math.sin((step / steps * math.pi * 2) + (i / NUM_LEDS * math.pi * 2))
-            wave = (wave + 1) / 2  # 0 ~ 1 사이로 변환
-
-            # 청록색 ↔ 파랑 자연스럽게!
-            g_val = int(wave * 180)        # 0 ~ 180
-            b_val = int(255 - wave * 150)  # 255 ~ 105
-            led[i] = (0, g_val, b_val)
-
-        led.write()
-        time.sleep(0.03)
+    steps = 40
+    for i in range(steps):
+        t = i / steps
+        wave = (math.sin(t * math.pi * 2 - math.pi / 2) + 1) / 2
+        g_val = int(200 - wave * 150)
+        b_val = int(200 + wave * 55)
+        set_color(0, g_val, b_val)
+        time.sleep(0.02)
+    set_gauge(ppm)
 
 # ================================
 # 주의 : 노랑 천천히 깜빡
@@ -82,7 +82,7 @@ def warning_mode(ppm):
     set_gauge(ppm)
 
 # ================================
-# 위험 : 빨강 번쩍
+# 위험 : 빨강 번쩍 + 게이지
 # ================================
 def danger_mode(ppm):
     for _ in range(6):
@@ -90,6 +90,32 @@ def danger_mode(ppm):
         time.sleep(0.04)
         set_gauge(ppm)
         time.sleep(0.04)
+
+# ================================
+# 📈 공기질 예보 함수
+# ================================
+def get_forecast(ppm):
+    global prev_ppm
+
+    # 첫 측정은 비교 불가
+    if prev_ppm is None:
+        prev_ppm = ppm
+        return "➡️ 측정 중..."
+
+    # 직전 값과 비교
+    diff = ppm - prev_ppm
+
+    if diff > 2:        # 2 이상 올라가면
+        forecast = "📈 공기질 나빠지는 중!"
+    elif diff < -2:     # 2 이상 내려가면
+        forecast = "📉 공기질 좋아지는 중!"
+    else:               # 2 이내면 유지
+        forecast = "➡️ 공기질 유지 중!"
+
+    # 현재값을 이전값으로 저장
+    prev_ppm = ppm
+
+    return forecast
 
 # ================================
 # PPM 변환
@@ -135,14 +161,17 @@ while True:
     raw_value = mq2.read_u16()
     ppm       = convert_to_ppm(raw_value)
     status    = get_status(ppm)
+    forecast  = get_forecast(ppm)   # 📈 예보 계산
 
+    # PPM + 기준선 + 예보 출력!
     print(ppm, SAFE_THRESHOLD, WARN_THRESHOLD)
+    print(f"  {forecast}")
 
     if ppm < SAFE_THRESHOLD:
-        safe_mode(ppm)      # 🌊 파도 그라데이션
+        safe_mode(ppm)
 
     elif ppm < WARN_THRESHOLD:
-        warning_mode(ppm)   # 🟡 노랑 깜빡
+        warning_mode(ppm)
 
     else:
-        danger_mode(ppm)    # 🔴 빨강 번쩍
+        danger_mode(ppm)
