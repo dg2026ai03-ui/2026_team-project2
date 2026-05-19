@@ -18,11 +18,6 @@ SAFE_THRESHOLD = 120
 WARN_THRESHOLD = 150
 
 # ================================
-# 신기록 변수
-# ================================
-max_ppm = 0
-
-# ================================
 # 네오픽셀 색상 함수
 # ================================
 def set_color(r, g, b):
@@ -34,16 +29,23 @@ def led_off():
     set_color(0, 0, 0)
 
 # ================================
-# 안전 : 초록↔파랑 파도처럼 일렁
+# 안전 : 자연스러운 그라데이션 🌊
 # ================================
 def safe_mode():
-    steps = 40
+    steps = 100  # ✅ 더 촘촘하게!
     for i in range(steps):
-        wave  = math.sin(i / steps * math.pi * 2)
-        g_val = int(127 + wave * 127)
-        b_val = int(127 - wave * 127)
-        set_color(0, g_val, b_val)
-        time.sleep(0.03)
+        t = i / steps
+
+        # ✅ 사인파로 부드럽게 전환!
+        wave = (math.sin(t * math.pi * 2 - math.pi / 2) + 1) / 2
+
+        # 청록색(0,200,200) → 파랑(0,50,255) → 청록색 반복
+        r_val = 0
+        g_val = int(200 - wave * 150)  # 200 → 50 → 200
+        b_val = int(200 + wave * 55)   # 200 → 255 → 200
+
+        set_color(r_val, g_val, b_val)
+        time.sleep(0.02)
 
 # ================================
 # 주의 : 노랑 천천히 깜빡
@@ -70,54 +72,6 @@ def danger_mode():
         time.sleep(0.04)
 
 # ================================
-# 🌈 신기록 무지개 효과
-# ================================
-def rainbow_mode():
-    print("✨ 완벽한 공기질 달성!")
-    print(f"  🏆 신기록 PPM : {max_ppm:.1f}")
-
-    # 무지개 색상 10개
-    colors = [
-        (255, 0,   0),    # 🔴 빨강
-        (255, 60,  0),    # 🟠 주황1
-        (255, 100, 0),    # 🟠 주황2
-        (255, 255, 0),    # 🟡 노랑
-        (100, 255, 0),    # 연두
-        (0,   255, 0),    # 🟢 초록
-        (0,   255, 150),  # 청록
-        (0,   100, 255),  # 하늘
-        (0,   0,   255),  # 🔵 파랑
-        (150, 0,   255),  # 🟣 보라
-    ]
-
-    # 3번 반복
-    for _ in range(3):
-        # 1단계: 순서대로 하나씩 켜지기
-        for i in range(NUM_LEDS):
-            led[i] = colors[i]
-            led.write()
-            time.sleep(0.05)
-
-        time.sleep(0.2)
-
-        # 2단계: 전체가 같은 색으로 쭉 훑기
-        for r, g, b in colors:
-            set_color(r, g, b)
-            time.sleep(0.06)
-
-        time.sleep(0.2)
-
-        # 3단계: 반대로 하나씩 꺼지기
-        for i in range(NUM_LEDS - 1, -1, -1):
-            led[i] = (0, 0, 0)
-            led.write()
-            time.sleep(0.05)
-
-        time.sleep(0.2)
-
-    led_off()
-
-# ================================
 # PPM 변환
 # ================================
 def convert_to_ppm(raw_value):
@@ -141,7 +95,7 @@ def print_bar(ppm, status):
     count = int((ppm / 200) * 10)
     count = max(0, min(10, count))
     bar   = "█" * count + "░" * (10 - count)
-    print(f"[{bar}] {status} | PPM:{ppm:.1f} | 최고기록:{max_ppm:.1f}")
+    print(f"[{bar}] {status} | PPM:{ppm:.1f}")
 
 # ================================
 # 워밍업
@@ -171,20 +125,13 @@ while True:
     ppm       = convert_to_ppm(raw_value)
     status    = get_status(ppm)
 
-    # 신기록 갱신 확인
-    if ppm > max_ppm:
-        max_ppm = ppm
-        rainbow_mode()   # 🌈 신기록 무지개 효과!
-
     print_bar(ppm, status)
 
     if ppm < SAFE_THRESHOLD:
-        safe_mode()
+        safe_mode()       # 🟢 청록↔파랑 그라데이션
 
     elif ppm < WARN_THRESHOLD:
-        warning_mode()
+        warning_mode()    # 🟡 노랑 깜빡
 
     else:
-        danger_mode()
-
-    time.sleep(1)
+        danger_mode()     # 🔴 빨강 번쩍
