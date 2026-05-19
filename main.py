@@ -20,7 +20,7 @@ WARN_THRESHOLD = 150
 # ================================
 # 공기질 예보 변수
 # ================================
-prev_ppm = None   # 직전 측정값 저장
+history = []   # 최근 3회 측정값 저장
 
 # ================================
 # 네오픽셀 색상 함수
@@ -53,18 +53,21 @@ def set_gauge(ppm):
     led.write()
 
 # ================================
-# 안전 : 청록↔파랑 그라데이션
+# 안전 : LED마다 파도처럼 그라데이션!
 # ================================
 def safe_mode(ppm):
-    steps = 40
-    for i in range(steps):
-        t = i / steps
-        wave = (math.sin(t * math.pi * 2 - math.pi / 2) + 1) / 2
-        g_val = int(200 - wave * 150)
-        b_val = int(200 + wave * 55)
-        set_color(0, g_val, b_val)
-        time.sleep(0.02)
-    set_gauge(ppm)
+    steps = 60
+    for step in range(steps):
+        for i in range(NUM_LEDS):
+            wave = math.sin((step / steps * math.pi * 2) + (i / NUM_LEDS * math.pi * 2))
+            wave = (wave + 1) / 2
+
+            g_val = int(wave * 180)
+            b_val = int(255 - wave * 150)
+            led[i] = (0, g_val, b_val)
+
+        led.write()
+        time.sleep(0.03)
 
 # ================================
 # 주의 : 노랑 천천히 깜빡
@@ -82,7 +85,7 @@ def warning_mode(ppm):
     set_gauge(ppm)
 
 # ================================
-# 위험 : 빨강 번쩍 + 게이지
+# 위험 : 빨강 번쩍
 # ================================
 def danger_mode(ppm):
     for _ in range(6):
@@ -92,30 +95,34 @@ def danger_mode(ppm):
         time.sleep(0.04)
 
 # ================================
-# 📈 공기질 예보 함수
+# 📈 공기질 예보 함수 (3회 비교)
 # ================================
 def get_forecast(ppm):
-    global prev_ppm
+    global history
 
-    # 첫 측정은 비교 불가
-    if prev_ppm is None:
-        prev_ppm = ppm
-        return "➡️ 측정 중..."
+    # 현재값 추가
+    history.append(ppm)
 
-    # 직전 값과 비교
-    diff = ppm - prev_ppm
+    # 3개 초과 시 오래된 것 삭제
+    if len(history) > 3:
+        history.pop(0)
 
-    if diff > 2:        # 2 이상 올라가면
-        forecast = "📈 공기질 나빠지는 중!"
-    elif diff < -2:     # 2 이상 내려가면
-        forecast = "📉 공기질 좋아지는 중!"
-    else:               # 2 이내면 유지
-        forecast = "➡️ 공기질 유지 중!"
+    # 3회 미만이면 아직 측정 중
+    if len(history) < 3:
+        return f"➡️ 측정 중... ({len(history)}/3)"
 
-    # 현재값을 이전값으로 저장
-    prev_ppm = ppm
+    # 3회 다 모였으면 비교!
+    first = history[0]   # 3번 전
+    last  = history[2]   # 현재
 
-    return forecast
+    diff = last - first
+
+    if diff > 2:
+        return "📈 공기질 나빠지는 중!"
+    elif diff < -2:
+        return "📉 공기질 좋아지는 중!"
+    else:
+        return "➡️ 공기질 유지 중!"
 
 # ================================
 # PPM 변환
@@ -168,10 +175,10 @@ while True:
     print(f"  {forecast}")
 
     if ppm < SAFE_THRESHOLD:
-        safe_mode(ppm)
+        safe_mode(ppm)      # 🌊 파도 그라데이션
 
     elif ppm < WARN_THRESHOLD:
-        warning_mode(ppm)
+        warning_mode(ppm)   # 🟡 노랑 깜빡
 
     else:
-        danger_mode(ppm)
+        danger_mode(ppm)    # 🔴 빨강 번쩍
