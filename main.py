@@ -12,18 +12,18 @@ NUM_LEDS = 10
 led = NeoPixel(Pin(16), NUM_LEDS, timing=TIMING)
 
 # ================================
-# 임계값 설정
+# 임계값 설정 (수정완료!)
 # ================================
-SAFE_THRESHOLD = 120
-WARN_THRESHOLD = 150
+SAFE_THRESHOLD = 210    # 120 → 210
+WARN_THRESHOLD = 230    # 150 → 230
 
 # ================================
-# 추가 변수 (1,2,4번 기능)
+# 추가 변수
 # ================================
-peak_ppm      = 0        # 1️⃣ 최고치 기록
-warn_count    = 0        # 2️⃣ 경고 횟수
-start_time    = time.ticks_ms()  # 4️⃣ 측정 시작 시간
-history       = []       # 공기질 예보용
+peak_ppm   = 0
+warn_count = 0
+start_time = time.ticks_ms()
+history    = []
 
 # ================================
 # 네오픽셀 색상 함수
@@ -95,7 +95,7 @@ def danger_mode(ppm):
         time.sleep(0.04)
 
 # ================================
-# 1️⃣ 최고치 기록 함수
+# 1️⃣ 최고치 기록
 # ================================
 def update_peak(ppm):
     global peak_ppm
@@ -113,7 +113,7 @@ def update_warn_count(ppm, prev_status):
         print(f"  ⚠️  경고 발생! 누적 횟수 : {warn_count}회")
 
 # ================================
-# 4️⃣ 측정 시간 계산
+# 4️⃣ 측정 시간
 # ================================
 def get_elapsed_time():
     elapsed = time.ticks_diff(time.ticks_ms(), start_time) // 1000
@@ -179,7 +179,7 @@ def warmup():
 # ================================
 warmup()
 
-prev_status = "안전 🟢"   # 이전 상태 저장 (2번 기능용)
+prev_status = "안전 🟢"
 
 while True:
     raw_value = mq2.read_u16()
@@ -187,32 +187,23 @@ while True:
     status    = get_status(ppm)
     forecast  = get_forecast(ppm)
 
-    # 1️⃣ 최고치 업데이트
     update_peak(ppm)
-
-    # 2️⃣ 경고 횟수 업데이트
     update_warn_count(ppm, prev_status)
 
-    # ================================
-    # 시리얼 출력
-    # ================================
     print("=" * 40)
-    print(f"  🕐 측정 시간  : {get_elapsed_time()}")       # 4️⃣
+    print(f"  🕐 측정 시간  : {get_elapsed_time()}")
     print(f"  📊 현재 PPM   : {ppm:.1f}")
-    print(f"  🏆 최고 PPM   : {peak_ppm:.1f}")             # 1️⃣
-    print(f"  ⚠️  경고 횟수  : {warn_count}회")             # 2️⃣
+    print(f"  🏆 최고 PPM   : {peak_ppm:.1f}")
+    print(f"  ⚠️  경고 횟수  : {warn_count}회")
     print(f"  📍 현재 상태  : {status}")
     print(f"  {forecast}")
     print("=" * 40)
 
-    # LED 효과
     if ppm < SAFE_THRESHOLD:
         safe_mode(ppm)
-
     elif ppm < WARN_THRESHOLD:
         warning_mode(ppm)
-
     else:
         danger_mode(ppm)
 
-    prev_status = status   # 이전 상태 저장
+    prev_status = status
